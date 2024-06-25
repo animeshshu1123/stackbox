@@ -55,11 +55,11 @@ function populateSearchSequence(searchSequenceData: any[]): void {
 
 function populateStorageBins(storageData: any[]): void {
     storageData.forEach((item: any) => {
-        const srcbin = item['Bin Code'];
-        const binType = item['Bin Type'];
+        const srcbin = item['Code'];
+        const binType = item['BinType Code'];
 
         if (!binType || binType.length === 0) {
-            // console.error(`Bin type is undefined or invalid for bin code ${srcbin}`);
+            console.error(`Bin type is undefined or invalid for bin code ${srcbin}`);
             return;
         }
 
@@ -75,6 +75,7 @@ function populateStorageBins(storageData: any[]): void {
             // console.error(`No digits found in bin type for bin code ${srcbin}`);
         }
     });
+    // console.log("Bins map has been populated with the following data:", bins);
 }
 
 function loadInventoryItems(inventoryData: any[]): void {
@@ -140,6 +141,10 @@ function consolidateInventory(): ConsolidatedInventory[] {
     // Initialize bin usage based on current inventory counts
     inventory.forEach(items => {
         items.forEach(item => {
+            // if (!bins.has(item.srcbin)) {
+            //     console.error(`Bin data missing for srcbin: ${item.srcbin}`);
+            //     return;  // Ensure bin data is available before processing
+            // }
             binUsage.set(item.srcbin, (binUsage.get(item.srcbin) || 0) + 1);
             if (!skuToBinItems.has(item.skuCode)) {
                 skuToBinItems.set(item.skuCode, []);
@@ -204,6 +209,17 @@ function consolidateInventory(): ConsolidatedInventory[] {
                         qty1: item.qty1,
                         destBin: target.srcbin 
                     });
+                    // Update bin usages
+                    binUsage.set(target.srcbin, combinedUsage); // Increment target bin usage
+                    binUsage.set(item.srcbin, (binUsage.get(item.srcbin) || 0) - 1); // Decrement original bin usage if item is moved
+
+                    // Check if the original bin is now empty
+                    if ((binUsage.get(item.srcbin) || 0) <= 0) {
+                        // console.log(`Bin ${item.binCode} is now empty.`);
+                        count1+=1;
+                    }
+                    count += Math.abs(binUsage.get(item.srcbin)-bins.get(item.srcbin).numPallets);
+                    // item.qty1 = 0;  // Mark the bin as fully moved
                 }
             }
         });
