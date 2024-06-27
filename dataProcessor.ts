@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { loadExcelData } from './dataloader';
+import { config } from './config';
 
 export interface InventoryItem {
     srcbin: string;
@@ -57,8 +58,25 @@ export function populateSearchSequence(searchSequenceData: any[]): Map<string, n
     return searchSequence;
 }
 
-export function loadInventoryItems(inventoryFilePath: string): Map<string, InventoryItem[]> {
+function loadBinFaceData(binFaceFilePath: string, binFaceSheetName: string): Map<string, string> {
+    const binFaceData = loadExcelData(binFaceFilePath,binFaceSheetName);
+    const binFaces = new Map<string, string>();
+
+    binFaceData.forEach((item: any) => {
+        const zoneCode = item['Code'];
+        const face = item['Face (PICK|RESERVE)'];
+        if (zoneCode && face) {
+            binFaces.set(zoneCode, face);
+        }
+    });
+    console.log(`Populated dump for ${binFaces.size} bins.`);
+    // console.log(binFaces);
+    return binFaces;
+}
+
+export function loadInventoryItems(inventoryFilePath: string,binFaceFilePath:string,binFaceSheetName:string): Map<string, InventoryItem[]> {
     const inventoryData = loadExcelData(inventoryFilePath);
+    const binFaces = loadBinFaceData(binFaceFilePath,binFaceSheetName);
     const inventoryItems = new Map<string, InventoryItem[]>();
     inventoryData.forEach((item: any) => {
 
@@ -68,10 +86,13 @@ export function loadInventoryItems(inventoryFilePath: string): Map<string, Inven
         const areaType = item['Area Type'];
         const qlty = item['Quality'];
         const LType = item['UOM'];
+        const areaCode = item['Area Code'];
+        const zoneCode = item['Zone Code'];
+        const srcbin = item['Bin Code'];
 
-        if (status === 'ACTIVE' && areaType === 'INVENTORY' && LType === 'L2' && qlty==='Good' && 
-            lockStatus === 'FREE' && quantity > 0) {
-            const srcbin = item['Bin Code'];
+        if (status === 'ACTIVE' && config.acceptableAreaZones.includes(areaCode) && config.acceptableZones.includes(zoneCode) && areaType === 'INVENTORY' && LType === 'L2' && qlty==='Good' && 
+            lockStatus === 'FREE' && quantity > 0 && binFaces.get(zoneCode) === config.pickFaceType) {
+            // console.log(binFaces.get(srcbin));
             const inventoryItem: InventoryItem = {
                 srcbin: srcbin,
                 huCode: item['HU Code'],
@@ -86,12 +107,13 @@ export function loadInventoryItems(inventoryFilePath: string): Map<string, Inven
             inventoryItems.get(srcbin)?.push(inventoryItem);
         }
     });
+    console.log(`Populated dump for ${inventoryItems.size} bins.`);
     return inventoryItems;
 }
 
 // Function to load and process all required data from Excel
-export function loadAndProcessData(inventoryFilePath: string, storageFilePath: string, storageSheetName: string, searchSequenceFilePath: string, searchSequenceSheetName: string): { bins: Map<string, Bin>, searchSequence: Map<string, number>, inventoryItems: Map<string, InventoryItem[]>} {
-    const inventoryItems = loadInventoryItems(inventoryFilePath);
+export function loadAndProcessData(inventoryFilePath: string, storageFilePath: string, storageSheetName: string, searchSequenceFilePath: string, searchSequenceSheetName: string, binFaceFilePath: string ,binFaceSheetName: string): { bins: Map<string, Bin>, searchSequence: Map<string, number>, inventoryItems: Map<string, InventoryItem[]>} {
+    const inventoryItems = loadInventoryItems(inventoryFilePath,binFaceFilePath,binFaceSheetName);
     
     const storageData = loadExcelData(storageFilePath, storageSheetName);
     const bins = populateStorageBins(storageData);

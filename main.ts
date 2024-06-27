@@ -11,12 +11,18 @@ function main() {
             config.storageFilePath,
             config.storageSheetName,
             config.searchSequenceFilePath,
-            config.searchSequenceSheetName
+            config.searchSequenceSheetName,
+            config.binFaceFilePath,
+            config.binFaceSheetName
         );
 
-        // Now use bins and searchSequence as needed, for example:
-        const consolidatedItems = consolidateInventory(inventoryItems, bins, searchSequence);
-        exportToExcel(consolidatedItems, config.outputFilePath);
+        if (config.userChoice==='PALLET'){
+            const consolidatedItems = consolidateInventory(inventoryItems, bins, searchSequence);
+            exportToExcel(consolidatedItems, config.outputFilePath);
+        }
+        else{
+            console.log('Wrong Choice');
+        }
     } catch (error) {
         console.error('Failed to process inventory data:', error);
     }
