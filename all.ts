@@ -97,7 +97,7 @@ function populateSearchSequence(searchSequenceData: any[]): void {
         const binCode = item['Code'];
         const binType = item['Bucket (Good|Damaged)'];
         const sequence = parseInt(item['Search Sequence'], 10);
-        if (binType === 'GOOD' && binCode && !isNaN(sequence)) {
+        if (binType === 'Good' && binCode && !isNaN(sequence)) {
             searchSequence.set(binCode, sequence);
         }
     });
@@ -105,6 +105,22 @@ function populateSearchSequence(searchSequenceData: any[]): void {
 }
 
 function loadInventoryItems(inventoryData: any[]): void {
+    const lockedItems = new Set<string>();
+
+    // First pass to identify all locked items
+    inventoryData.forEach((item: any) => {
+        const inclusionStatus = item['Inclusion Status'];
+        const lockStatus = item['LockStatus'];
+        const skuCode = item['Sku Code'];
+        const batch = item['Batch'];
+        const binCode = item['Bin Code'];
+
+        if (inclusionStatus === 'INCLUDED' && lockStatus === 'LOCKED') {
+            const key = `${skuCode}-${batch}-${binCode}`;
+            lockedItems.add(key);
+        }
+    });
+
     inventoryData.forEach((item: any) => {
         const inclusionStatus = item['Inclusion Status'];
         const bucket = item['Quality'];
@@ -112,16 +128,22 @@ function loadInventoryItems(inventoryData: any[]): void {
         const lockStatus = item['LockStatus'];
         const quantity = parseInt(item['Quantity'], 10);
         const areatype = item['Area Type'];
+        const skuCode = item['Sku Code'];
+        const batch = item['Batch'];
+        const binCode = item['Bin Code'];
+
+        const key = `${skuCode}-${batch}-${binCode}`;
+        if (lockedItems.has(key)) {
+            return; 
+        }
 
         if (inclusionStatus === 'INCLUDED' && areatype === 'INVENTORY' && bucket === 'Good' &&
             status === 'ACTIVE' && lockStatus === 'FREE' && quantity > 0) {
-            
-            const binCode = item['Bin Code'];
             const inventoryItem: InventoryItem = {
                 binCode: binCode,
                 huCode: item['HU Code'],
-                skuCode: parseInt(item['Sku Code'], 10),
-                batch: item['Batch'],
+                skuCode: parseInt(skuCode, 10),
+                batch: batch,
                 qty1: quantity
             };
 
@@ -221,6 +243,10 @@ function consolidateInventoryMain(): ConsolidatedInventoryBin[] {
                 const combinedUsage = (binUsage.get(item.binCode) || 0) + (binUsage.get(target.binCode) || 0);
 
                 if (binUsage.get(target.binCode) === 0) {
+                    return;
+                }
+
+                if ((binUsage.get(item.binCode))>(binUsage.get(target.binCode))){
                     return;
                 }
 
