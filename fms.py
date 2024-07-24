@@ -64,8 +64,8 @@ def perform_vlookup_operations(file_path):
 
     with pd.ExcelWriter(file_path, mode='a', engine='openpyxl') as writer:
         book = writer.book     
-        df_abc.to_excel(writer, sheet_name='Updated ABC Data', index=False)
-        df_fms.to_excel(writer, sheet_name='Updated FMS Data', index=False)
+        df_abc.to_excel(writer, sheet_name='Lookup ABC Data', index=False)
+        df_fms.to_excel(writer, sheet_name='Lookup FMS Data', index=False)
 
 file_path = 'Allocation Report.xlsx' 
 
