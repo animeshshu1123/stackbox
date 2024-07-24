@@ -47,6 +47,7 @@ const bins = new Map<string, Bin>();
 const inventory = new Map<string, InventoryItem[]>();
 const bestFitCapacities = new Map<number, number>();
 const searchSequence = new Map<string, number>();
+const BinsearchSequence = new Map<string, number>();
 const binUsage = new Map<string, number>();
 
 function loadExcelData(filePath: string, sheetName?: string): any[] {
@@ -79,6 +80,7 @@ function populateStorageBins(storageData: any[]): void {
             // console.error(`No digits found in bin type for bin code ${binCode}`);
         }
     });
+    console.log("Bins map has been populated with the following data:", bins);
 }
 
 function populateBestFitCapacities(bestFitData: any[]): void {
@@ -97,12 +99,13 @@ function populateSearchSequence(searchSequenceData: any[]): void {
         const binCode = item['Code'];
         const binType = item['Bucket (Good|Damaged)'];
         const sequence = parseInt(item['Search Sequence'], 10);
-        if (binType === 'Good' && binCode && !isNaN(sequence)) {
+        if (binType === 'Good') {
             searchSequence.set(binCode, sequence);
         }
     });
     console.log(`Populated search sequences for ${searchSequence.size} bins.`);
 }
+
 
 function loadInventoryItems(inventoryData: any[]): void {
     const lockedItems = new Set<string>();
@@ -214,13 +217,15 @@ function consolidateInventoryMain(): ConsolidatedInventoryBin[] {
             }
 
             // Filter potential targets that meet batch closeness and capacity conditions
-            const potentialTargets = items.filter(targetItem => {
+            const potentialTargets = Array.from(items.filter(targetItem => {
                 const batchYearDiff = batchYearCalc(item.batch, targetItem.batch);
                 const targetBinUsage = binUsage.get(targetItem.binCode) || 0;
                 const targetBinCapacity = bins.get(targetItem.binCode)?.numPallets || Infinity;
 
                 return item.binCode !== targetItem.binCode && batchYearDiff <= 30 && targetBinUsage < targetBinCapacity;
-            });
+            })
+            .reduce((acc, cur) => acc.set(cur.binCode, cur), new Map())
+            .values());
 
             // potentialTargets.sort((a, b) => (binUsage.get(b.binCode) || 0) - (binUsage.get(a.binCode) || 0));
 
@@ -229,13 +234,14 @@ function consolidateInventoryMain(): ConsolidatedInventoryBin[] {
                 const usageDiffB = Math.abs(binUsage.get(b.binCode)-bins.get(b.binCode).numPallets);
             
                 if (usageDiffA === usageDiffB) {
-                    const sequenceDiffA = Math.abs((searchSequence.get(item.binCode) || 0) - (searchSequence.get(a.binCode) || 0));
-                    const sequenceDiffB = Math.abs((searchSequence.get(item.binCode) || 0) - (searchSequence.get(b.binCode) || 0));
+                    const sequenceDiffA = Math.abs(searchSequence.get(item.binCode) - searchSequence.get(a.binCode));
+                    const sequenceDiffB = Math.abs(searchSequence.get(item.binCode) - searchSequence.get(b.binCode));
                     return sequenceDiffA - sequenceDiffB;
                 }
             
-                return (binUsage.get(b.binCode) || 0) - (binUsage.get(a.binCode) || 0);
-            });            
+                return usageDiffB - usageDiffA;
+            });   
+            // console.log(potentialTargets);         
 
             // Select the best target for consolidation
             if (potentialTargets.length > 0) {
@@ -245,11 +251,9 @@ function consolidateInventoryMain(): ConsolidatedInventoryBin[] {
                 if (binUsage.get(target.binCode) === 0) {
                     return;
                 }
-
                 if ((binUsage.get(item.binCode))>(binUsage.get(target.binCode))){
                     return;
                 }
-
                 if (combinedUsage <= (bins.get(target.binCode)?.numPallets)) {
                     results.push({
                         binCode: item.binCode,
@@ -372,7 +376,7 @@ function exportToExcelHU(consolidatedItems, workbook) {
 }
 
 function main() {
-    const inventoryData = loadExcelData('InventoryDump7.xlsx');
+    const inventoryData = loadExcelData('BinInventory.xlsx');
     populateStorageBins(inventoryData);
     loadInventoryItems(inventoryData);
     const searchSequenceData = loadExcelData('SearchSequence.xlsx');
